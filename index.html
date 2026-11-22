@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>智慧翻譯機</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#f4f5f9;--card:#fff;--text:#1b1d29;--sub:#6b7085;--line:#e3e5ee;--acc:#4f5bd5;--accT:#fff;--danger:#e5484d}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#12131a;--card:#1c1e29;--text:#eef0f8;--sub:#9a9fb5;--line:#2c2f3f;--acc:#7b86ff;--accT:#10121c}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#12131a;--card:#1c1e29;--text:#eef0f8;--sub:#9a9fb5;--line:#2c2f3f;--acc:#7b86ff;--accT:#10121c}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*:before,*:after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif}
+.wrap{max-width:640px;margin:0 auto;padding:16px}
+.head{display:flex;gap:8px;align-items:center;margin:4px 0 6px}
+h1{font-size:20px;margin:0;flex:1}
+.langs{display:flex;gap:8px;align-items:center;margin:10px 0 4px}
+select{flex:1;min-width:0;padding:10px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:15px}
+button{font:inherit;cursor:pointer;border-radius:12px;color:var(--text);background:var(--card);border:1px solid var(--line);padding:10px 14px}
+button:active{transform:scale(.97)}
+.swap{padding:10px 12px;flex:none}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px}
+textarea,input[type=password]{width:100%;border:0;outline:0;background:transparent;color:var(--text);font:inherit;font-size:18px}
+textarea{min-height:110px;resize:vertical}
+input[type=password]{border:1px solid var(--line);border-radius:10px;padding:10px;font-size:15px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.sp{flex:1}
+.pri{background:var(--acc);color:var(--accT);border-color:var(--acc);font-weight:600;width:100%;padding:13px;margin-bottom:12px;font-size:17px}
+.rec{background:var(--danger)!important;color:#fff!important;border-color:var(--danger)!important}
+#out{min-height:70px;font-size:18px;white-space:pre-wrap;word-break:break-word}
+.muted{color:var(--sub);font-size:13px}
+.hist{padding:10px 0;border-top:1px solid var(--line);cursor:pointer}
+.hist:first-child{border-top:0}
+.ov{position:fixed;inset:0;z-index:50;display:none;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+#cam{background:#000}
+#cam video{flex:1;min-height:0;width:100%;object-fit:contain}
+#cam .bar{display:flex;gap:10px;justify-content:center;padding:14px}
+#conv{background:var(--bg)}
+.pane{flex:1;min-height:0;display:flex;flex-direction:column;padding:12px;gap:8px}
+.flip{transform:rotate(180deg)}
+.msg{flex:1;overflow:auto;display:flex;flex-direction:column;justify-content:center}
+.big{font-size:26px;font-weight:600;word-break:break-word;line-height:1.35}
+.small{color:var(--sub);font-size:14px;margin-top:8px;word-break:break-word}
+.ti{width:100%;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:16px}
+.mid{display:flex;justify-content:space-between;align-items:center;padding:6px 12px;border-block:1px solid var(--line);font-size:14px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--text);color:var(--bg);padding:8px 16px;border-radius:20px;font-size:14px;display:none;z-index:80;max-width:90%;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <h1>🌐 智慧翻譯機</h1>
+    <button id="convBtn">💬 對話模式</button>
+    <button id="setBtn" aria-label="設定" style="display:none">⚙</button>
+  </div>
+  <div class="muted" id="eng"></div>
+
+  <div class="card" id="set" style="display:none">
+    <b>設定</b>
+    <p class="muted">預設使用免費翻譯。若填入 Anthropic API 金鑰，翻譯品質更好，拍照也會用 Claude 直接看圖翻譯。金鑰只存在這支手機的瀏覽器，只會傳給 Anthropic。</p>
+    <input type="password" id="key" placeholder="sk-ant-…" autocomplete="off">
+    <div class="row"><button id="keySave">儲存</button><button id="keyDel">清除</button></div>
+  </div>
+
+  <div class="langs">
+    <select id="sl" aria-label="來源語言"></select>
+    <button class="swap" id="swap" aria-label="對調語言">⇄</button>
+    <select id="tl" aria-label="目標語言"></select>
+  </div>
+  <div class="muted" style="margin-bottom:10px">聆聽時請先選好你說的語言（選「自動偵測」時以中文辨識）。</div>
+
+  <div class="card">
+    <textarea id="src" placeholder="輸入文字，或按下方「聆聽」「相機」…"></textarea>
+    <div class="row">
+      <button id="mic">🎤 聆聽</button>
+      <button id="camBtn">📷 相機</button>
+      <span class="sp"></span>
+      <button id="clr" aria-label="清除">✕</button>
+    </div>
+  </div>
+
+  <button class="pri" id="go">翻譯</button>
+
+  <div class="card">
+    <div id="out" class="muted">譯文會顯示在這裡</div>
+    <div class="row">
+      <button id="spk">🔊 朗讀</button>
+      <button id="cp">📋 複製</button>
+      <span class="sp"></span>
+      <span class="muted" id="st"></span>
+    </div>
+  </div>
+
+  <div class="card" id="hbox" style="display:none">
+    <div class="row" style="margin:0 0 6px"><b>歷史紀錄</b><span class="sp"></span><button id="hclr" style="padding:4px 10px;font-size:13px">清空</button></div>
+    <div id="hist"></div>
+  </div>
+</div>
+
+<div id="cam" class="ov">
+  <video id="vid" autoplay playsinline muted></video>
+  <div class="bar">
+    <button id="cancel">取消</button>
+    <button id="snap" class="pri" style="width:auto;margin:0;padding:12px 28px">拍照翻譯</button>
+    <button id="pick">相簿</button>
+  </div>
+</div>
+<div id="conv" class="ov"></div>
+<input type="file" id="file" accept="image/*" capture="environment" hidden>
+<div class="toast" id="toast"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const LANGS=[
+["繁體中文","zh-TW"],["简体中文","zh-CN"],["English","en-US"],["日本語","ja-JP"],["한국어","ko-KR"],
+["Español","es-ES"],["Français","fr-FR"],["Deutsch","de-DE"],["Italiano","it-IT"],["Русский","ru-RU"],
+["ไทย","th-TH"],["Tiếng Việt","vi-VN"],["Bahasa Indonesia","id-ID"],["العربية","ar-SA"]];
+const OCRL={"zh-TW":"chi_tra","zh-CN":"chi_sim","en-US":"eng","ja-JP":"jpn","ko-KR":"kor","es-ES":"spa","fr-FR":"fra","de-DE":"deu","it-IT":"ita","ru-RU":"rus","th-TH":"tha","vi-VN":"vie","id-ID":"ind","ar-SA":"ara"};
+const opts=LANGS.map((l,i)=>`<option value="${i}">${l[0]}</option>`).join('');
+$('sl').innerHTML='<option value="auto">自動偵測</option>'+opts;
+$('tl').innerHTML=opts;$('tl').value='2';
+let initErr='',sample=null,dict=null,imgOK=false,KEY='',ac=null,lastOut='',history=[],dictCb=null;
+try{KEY=localStorage.getItem('tr_key')||''}catch(e){}
+
+function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>t.style.display='none',2600)}
+function setOut(t){$('out').classList.remove('muted');$('out').textContent=t;lastOut=t}
+const tgt=()=>LANGS[+$('tl').value];
+function engLabel(){
+  $('eng').textContent='翻譯引擎：'+(sample?'Claude':KEY?'Claude API（自備金鑰）':'免費翻譯 + 離線文字辨識')+(window.claude&&!sample?'（Claude 翻譯未啟用：'+(initErr||'未授權')+'）':'');
+  $('setBtn').style.display=sample?'none':'';
+}
+(async()=>{
+  try{if(window.claude&&claude.use){
+    sample=await claude.use('sample');
+    if(sample){try{imgOK=!!(await sample.limits()).images}catch(e){}}
+  }}catch(e){initErr=(e&&(e.code||e.message))||'unknown'}
+  try{if(window.claude&&claude.use){
+    dict=await claude.use('dictation');
+    if(dict){
+      dict.onPartial(o=>dictCb&&dictCb.part(o.text));
+      dict.onFinal(o=>dictCb&&dictCb.fin(o.text));
+      dict.onState(o=>dictCb&&dictCb.state(o.state));
+    }
+  }}catch(e){}
+  engLabel();
+})();
+engLabel();
+
+/* ---------- 翻譯引擎 ---------- */
+function toB64(b){return new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(r.result.split(',')[1]);r.onerror=no;r.readAsDataURL(b)})}
+async function claudeApi(p,{image,signal}){
+  const content=[];
+  if(image)content.push({type:'image',source:{type:'base64',media_type:'image/jpeg',data:await toB64(image)}});
+  content.push({type:'text',text:p});
+  const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',signal,
+    headers:{'content-type':'application/json','x-api-key':KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    body:JSON.stringify({model:image?'claude-sonnet-5-5':'claude-haiku-5-5',max_tokens:1500,messages:[{role:'user',content}]})});
+  if(!r.ok)throw {code:'api'};
+  const j=await r.json();
+  return j.content.filter(c=>c.type==='text').map(c=>c.text).join('');
+}
+async function ask(p,o={}){
+  if(sample){
+    const so={modelTier:o.image?'default':'quick',cache:false,signal:o.signal};
+    if(o.image)so.images=[o.image];
+    if(o.onText)so.onText=o.onText;
+    return (await sample(p,so)).text;
+  }
+  return claudeApi(p,o);
+}
+function chunks(t){
+  const parts=t.match(/[^。！？.!?\n]+[。！？.!?\n]*/g)||[t],out=[];let c='';
+  for(const p of parts){if((c+p).length>350&&c){out.push(c);c=p}else c+=p}
+  if(c)out.push(c);return out;
+}
+async function free(text,from,to,signal){
+  const res=[];
+  for(const c of chunks(text)){
+    if(!c.trim()){res.push(c);continue}
+    const u='https://api.mymemory.translated.net/get?q='+encodeURIComponent(c)+'&langpair='+encodeURIComponent(from+'|'+to);
+    const j=await (await fetch(u,{signal})).json();
+    const t=j&&j.responseData&&j.responseData.translatedText;
+    if(!t||j.responseStatus!=200||/MYMEMORY WARNING/i.test(t))throw {code:'quota'};
+    res.push(t);
+  }
+  return res.join('');
+}
+/* s: 語言索引或 'auto'，t: 語言索引 */
+async function tr(text,s,t,o={}){
+  if(sample||KEY){
+    const sn=s==='auto'?'Detect the source language automatically.':'The source language is '+LANGS[s][0]+'.';
+    const p=`You are a professional translator. Translate the text inside <t> tags into ${LANGS[t][0]}. ${sn} Keep tone, line breaks and formatting. Output ONLY the translation, with no notes or quotes.\n<t>${text}</t>`;
+    return (await ask(p,o)).trim();
+  }
+  return (await free(text,s==='auto'?'Autodetect':LANGS[s][1],LANGS[t][1],o.signal)).trim();
+}
+function errMsg(e){
+  if(e&&e.code==='not_granted')return '需要授權才能翻譯，請重新操作並允許。';
+  if(e&&e.code==='rate_limited')return '使用太頻繁，請稍後再試。';
+  if(e&&e.code==='quota')return '免費翻譯今日額度已用完，可到 ⚙ 設定填入 API 金鑰。';
+  if(e&&e.code==='api')return 'API 金鑰或額度有問題，請到 ⚙ 設定檢查。';
+  if(e instanceof TypeError)return '網路連線失敗，請檢查網路。';
+  return '翻譯失敗：'+((e&&(e.code||e.message))||'未知錯誤')+'，請再試一次。';
+}
+
+/* ---------- 文字翻譯 ---------- */
+async function translate(){
+  const t=$('src').value.trim();if(!t)return;
+  if(ac)ac.abort();ac=new AbortController();
+  $('st').textContent='翻譯中…';
+  const s=$('sl').value==='auto'?'auto':+$('sl').value;
+  try{
+    const r=await tr(t,s,+$('tl').value,{signal:ac.signal,onText:({text})=>setOut(text)});
+    setOut(r);$('st').textContent='';addHist(t,r);
+  }catch(e){
+    if(e&&e.name==='AbortError')return;
+    $('st').textContent='';setOut(errMsg(e));
+  }
+}
+$('go').onclick=translate;
+$('src').addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.metaKey||e.ctrlKey))translate()});
+$('clr').onclick=()=>{$('src').value='';$('out').textContent='譯文會顯示在這裡';$('out').classList.add('muted');lastOut=''};
+$('swap').onclick=()=>{
+  const s=$('sl').value,t=$('tl').value;
+  if(s!=='auto')$('tl').value=s;
+  $('sl').value=t;
+  if(lastOut){$('src').value=lastOut;translate()}
+};
+function say(text,lang){
+  if(!('speechSynthesis' in window)){toast('此瀏覽器不支援朗讀');return}
+  speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang=lang;speechSynthesis.speak(u);
+}
+$('spk').onclick=()=>{if(lastOut)say(lastOut,tgt()[1])};
+$('cp').onclick=async()=>{if(!lastOut)return;try{await navigator.clipboard.writeText(lastOut);toast('已複製')}catch(e){toast('無法複製，請長按選取')}};
+
+/* ---------- 聆聽（共用） ---------- */
+/* cb: {part(text), end(text), fail()}；回傳停止函式 */
+function listen(lang,cb){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  let fin='',last='',done=false,stopFn=()=>{};
+  const finish=t=>{if(done)return;done=true;dictCb=null;cb.end(t)};
+  const fail=m=>{if(done)return;done=true;dictCb=null;cb.fail(m)};
+  function viaDict(){
+    dictCb={part:t=>{last=fin+t;cb.part(last)},fin:t=>{fin+=t;last=fin;cb.part(fin)},
+      state:s=>{if(s==='idle')finish(last)}};
+    stopFn=()=>{dict.stop().catch(()=>{})};
+    dict.start().catch(e=>fail(e&&e.code));
+  }
+  if(SR){
+    const r=new SR();let fell=false;
+    r.lang=lang;r.interimResults=true;r.continuous=false;
+    r.onresult=ev=>{
+      let f='',it='';
+      for(let i=0;i<ev.results.length;i++){const x=ev.results[i];if(x.isFinal)f+=x[0].transcript;else it+=x[0].transcript}
+      last=f+it;cb.part(last);
+    };
+    r.onerror=ev=>{
+      if(dict&&(ev.error==='not-allowed'||ev.error==='service-not-allowed')){fell=true;viaDict();return}
+      if(ev.error!=='no-speech'&&ev.error!=='aborted')fail(ev.error);
+    };
+    r.onend=()=>{if(!fell)finish(last)};
+    try{r.start();stopFn=()=>r.stop()}catch(e){if(dict)viaDict();else fail('start')}
+  }else if(dict){viaDict()}
+  else{setTimeout(()=>fail('unsupported'),0)}
+  return ()=>stopFn();
+}
+const micMsg=m=>toast('這裡無法使用麥克風（Claude App 內建視窗不開放）。請點輸入框，用鍵盤上的 🎤 聽寫；或把網頁放到 https 網址，用 Safari 開啟。');
+
+/* 主畫面麥克風 */
+let mainStop=null,mainLive=false;
+function micState(on){mainLive=on;$('mic').textContent=on?'⏹ 停止':'🎤 聆聽';$('mic').classList.toggle('rec',on)}
+const joinTxt=(a,b)=>a&&b?a+(/\s$/.test(a)?'':' ')+b:a+b;
+$('mic').onclick=()=>{
+  if(mainLive&&mainStop){mainStop();return}
+  if('speechSynthesis' in window)speechSynthesis.cancel();
+  const base=$('src').value.trim();
+  const lg=$('sl').value==='auto'?'zh-TW':LANGS[+$('sl').value][1];
+  micState(true);
+  const st=listen(lg,{
+    part:t=>{$('src').value=joinTxt(base,t)},
+    fail:m=>{mainStop=null;micState(false);micMsg(m);$('src').focus()},
+    end:t=>{mainStop=null;micState(false);t=(t||'').trim();if(t){$('src').value=joinTxt(base,t);translate()}}
+  });
+  if(mainLive)mainStop=st;
+};
+
+/* ---------- 相機 ---------- */
+let stream=null;
+function stopCam(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}$('cam').style.display='none'}
+$('camBtn').onclick=async()=>{
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){$('file').click();return}
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+    $('vid').srcObject=stream;$('cam').style.display='flex';
+  }catch(e){toast('無法開啟鏡頭，改用拍照／相簿');$('file').click()}
+};
+$('cancel').onclick=stopCam;
+$('pick').onclick=()=>{stopCam();$('file').click()};
+$('snap').onclick=()=>{
+  const v=$('vid');if(!v.videoWidth)return;
+  const c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;
+  c.getContext('2d').drawImage(v,0,0);stopCam();
+  c.toBlob(b=>b&&readImage(b),'image/jpeg',.85);
+};
+$('file').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)readImage(f)};
+async function shrink(blob){
+  const bmp=await createImageBitmap(blob);
+  const k=Math.min(1,1400/Math.max(bmp.width,bmp.height));
+  const c=document.createElement('canvas');c.width=Math.round(bmp.width*k);c.height=Math.round(bmp.height*k);
+  c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);
+  return new Promise(r=>c.toBlob(r,'image/jpeg',.85));
+}
+async function ocr(img){
+  if(!window.Tesseract){
+    await new Promise((ok,no)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';s.onload=ok;s.onerror=no;document.head.append(s)});
+  }
+  let lg='chi_tra+eng';
+  if($('sl').value!=='auto'){const c=OCRL[LANGS[+$('sl').value][1]];lg=c==='eng'?'eng':c+'+eng'}
+  const r=await Tesseract.recognize(img,lg,{logger:m=>{if(m.status==='recognizing text')$('st').textContent='辨識 '+Math.round(m.progress*100)+'%'}});
+  return r.data.text.replace(/([\u3000-\u9fff\uff00-\uffef])[ \t]+(?=[\u3000-\u9fff\uff00-\uffef])/g,'$1').trim();
+}
+async function readImage(blob){
+  $('st').textContent='辨識中…';setOut('正在辨識圖片文字…（第一次需下載辨識資料，請稍候）');
+  try{
+    const img=await shrink(blob);
+    const vision=(sample&&imgOK)||(!sample&&KEY);
+    let o,t;
+    if(vision){
+      const sn=$('sl').value==='auto'?'Detect the source language automatically.':'The source language is '+LANGS[+$('sl').value][0]+'.';
+      const p=`Read all text visible in the attached image. Then translate it into ${tgt()[0]}. ${sn} Reply in exactly this format and nothing else:\n<original text, preserving line breaks>\n===\n<translation>\nIf the image has no readable text, reply: NO_TEXT`;
+      const r=(await ask(p,{image:img})).trim();
+      if(r==='NO_TEXT'||!r.includes('===')){setOut('找不到可辨識的文字，請對準文字再拍一次。');$('st').textContent='';return}
+      const i=r.indexOf('===');o=r.slice(0,i).trim();t=r.slice(i+3).trim();
+    }else{
+      o=await ocr(img);
+      if(o.length<2){setOut('找不到可辨識的文字，請對準文字再拍一次。');$('st').textContent='';return}
+      $('src').value=o;$('st').textContent='翻譯中…';
+      t=await tr(o,$('sl').value==='auto'?'auto':+$('sl').value,+$('tl').value);
+    }
+    $('src').value=o;setOut(t);$('st').textContent='';addHist(o,t);
+  }catch(e){$('st').textContent='';setOut(errMsg(e))}
+}
+
+/* ---------- 對話模式 ---------- */
+const pane=s=>`<div class="pane${s==='B'?' flip':''}"><select id="l${s}">${opts}</select>
+<div class="msg"><div class="big" id="b${s}"></div><div class="small" id="s${s}"></div></div>
+<input class="ti" id="t${s}" placeholder="或打字／用鍵盤 🎤 聽寫，按送出" enterkeyhint="send">
+<button class="pri" id="k${s}" style="margin:0">🎤 點一下說話</button></div>`;
+$('conv').innerHTML=pane('B')+`<div class="mid"><button id="cx">✕ 結束對話</button><label><input type="checkbox" id="auto" checked> 自動朗讀譯文</label></div>`+pane('A');
+let cStop=null,cLive=false;
+function cMic(s,on){cLive=on;const k=$('k'+s);k.textContent=on?'⏹ 聆聽中…點一下停止':'🎤 點一下說話';k.classList.toggle('rec',on)}
+async function cSend(s,t){
+  t=(t||'').trim();if(!t)return;
+  const o=s==='A'?'B':'A',si=+$('l'+s).value,oi=+$('l'+o).value;
+  $('s'+s).textContent=t;$('b'+o).textContent='…';
+  try{
+    const r=await tr(t,si,oi);
+    $('b'+o).textContent=r;
+    if($('auto').checked)say(r,LANGS[oi][1]);
+  }catch(e){$('b'+o).textContent=errMsg(e)}
+}
+function cTalk(s){
+  if(cLive&&cStop){cStop();return}
+  const o=s==='A'?'B':'A',si=+$('l'+s).value,oi=+$('l'+o).value;
+  if('speechSynthesis' in window)speechSynthesis.cancel();
+  cMic(s,true);
+  const st=listen(LANGS[si][1],{
+    part:t=>{$('s'+s).textContent=t},
+    fail:m=>{cStop=null;cMic(s,false);micMsg(m);$('t'+s).focus()},
+    end:t=>{cStop=null;cMic(s,false);cSend(s,t)}
+  });
+  if(cLive)cStop=st;
+}
+['A','B'].forEach(s=>$('t'+s).addEventListener('keydown',e=>{if(e.key==='Enter'){const v=e.target.value;e.target.value='';cSend(s,v)}}));
+$('kA').onclick=()=>cTalk('A');$('kB').onclick=()=>cTalk('B');
+$('convBtn').onclick=()=>{
+  $('lA').value=$('sl').value==='auto'?'0':$('sl').value;
+  $('lB').value=$('tl').value===$('lA').value?'2':$('tl').value;
+  ['bA','bB','sA','sB'].forEach(i=>$(i).textContent='');
+  $('conv').style.display='flex';
+};
+$('cx').onclick=()=>{if(cStop)cStop();if('speechSynthesis' in window)speechSynthesis.cancel();$('conv').style.display='none'};
+
+/* ---------- 設定 ---------- */
+$('setBtn').onclick=()=>{const s=$('set');s.style.display=s.style.display==='none'?'block':'none';$('key').value=KEY};
+$('keySave').onclick=()=>{KEY=$('key').value.trim();try{localStorage.setItem('tr_key',KEY)}catch(e){}engLabel();toast(KEY?'已儲存':'已清除')};
+$('keyDel').onclick=()=>{KEY='';$('key').value='';try{localStorage.removeItem('tr_key')}catch(e){}engLabel();toast('已清除')};
+
+/* ---------- 歷史紀錄 ---------- */
+try{history=JSON.parse(localStorage.getItem('tr_hist')||'[]')}catch(e){history=[]}
+function addHist(s,t){
+  history=[{s,t,l:$('tl').value},...history.filter(h=>h.s!==s)].slice(0,20);
+  try{localStorage.setItem('tr_hist',JSON.stringify(history))}catch(e){}
+  renderHist();
+}
+function renderHist(){
+  $('hbox').style.display=history.length?'block':'none';
+  $('hist').innerHTML='';
+  history.forEach(h=>{
+    const d=document.createElement('div');d.className='hist';
+    const a=document.createElement('b');a.textContent=h.s.slice(0,80);
+    const b=document.createElement('div');b.className='muted';b.textContent=h.t.slice(0,80);
+    d.append(a,b);
+    d.onclick=()=>{$('src').value=h.s;$('tl').value=h.l;setOut(h.t);window.scrollTo({top:0,behavior:'smooth'})};
+    $('hist').append(d);
+  });
+}
+$('hclr').onclick=()=>{history=[];try{localStorage.removeItem('tr_hist')}catch(e){}renderHist()};
+renderHist();
+</script>
+</body>
+</html>
